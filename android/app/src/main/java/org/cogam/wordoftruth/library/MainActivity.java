@@ -47,7 +47,6 @@ public final class MainActivity extends Activity {
 
         Button openBrowser = new Button(this);
         openBrowser.setText("Browser");
-        openBrowser.setTextAllCaps(false);
         openBrowser.setContentDescription("Open library in external browser for sign-in");
         openBrowser.setOnClickListener(v -> openExternal(Uri.parse(SITE)));
         toolbar.addView(openBrowser, new LinearLayout.LayoutParams(dp(105), dp(43)));
