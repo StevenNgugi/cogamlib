@@ -5,8 +5,8 @@
 ## Architecture
 
 - Stripe Billing plus Stripe-hosted Checkout in subscription mode.
-- One Stripe product/recurring Price per paid tier: Growth, Faith Plus and Kingdom.
-- Keep Free at KES 0 outside Stripe.
+- One Stripe product and one monthly recurring USD Price per paid tier: Growth, Faith, Faith Plus, Kingdom and Sonship.
+- Keep the Free plan at USD 0 outside Stripe, with 3 distinct audio teachings and 2 distinct videos.
 - Stripe Customer Portal for cancellation, card/payment-method updates and plan changes.
 - Attach Stripe customer IDs to verified member records. Store price-ID mapping on the backend, never trust an amount or plan specified by a browser.
 - Server authentication protects /api/billing/checkout and /api/billing/portal.
@@ -19,26 +19,32 @@
 - Keep data needed for refunds and cancellations while protecting customer identity and minimizing personal data.
 - Stripe's API key and webhook secret must live only in the AppDeploy encrypted secret vault, not in GitHub, source code, mobile APK or user messages.
 - Use separate test and live account credentials, separate webhook secrets and Price IDs. The connected account appeared in **live mode**; therefore do not create or charge live subscriptions while testing.
-- Do not enable Stripe Tax by default; verify tax registration and rules first. Determine international billing and currency support before selecting KES. Payment-method availability is account- and currency-dependent.
+- Do not enable Stripe Tax by default; verify tax registration and rules first. Confirm USD billing is available for the connected merchant account and its customers. Payment-method availability is account- and currency-dependent.
 
-## Draft four-tier model (not authorized for live charges)
+## Confirmed subscription prices: six tiers, USD per month
 
-| Plan | Proposed KES/month | Policy |
-| --- | ---: | --- |
-| Free | 0 | 3 distinct audio teachings + 2 distinct videos |
-| Growth | 299 | Expanded media library |
-| Faith Plus | 699 | Larger library access |
-| Kingdom | 1299 | Full library plus eligible premium downloads |
+| Plan | USD/month | Stripe recurring Price amount | Notes |
+| --- | ---: | ---: | --- |
+| Free | $0 | No Stripe checkout | 3 audio teachings and 2 videos |
+| Growth | $5 | 500 cents | Expanded library access |
+| Faith | $10 | 1,000 cents | Additional teaching access |
+| Faith Plus | $15 | 1,500 cents | Extended teaching access |
+| Kingdom | $30 | 3,000 cents | Full library |
+| Sonship | $50 | 5,000 cents | Full library; additional benefits to be specified |
 
-These values came from an earlier **proposal**, not a confirmation to take money. Obtain approval of final prices, billing interval, currency, taxes and cancellation/refund terms before enabling checkout.
+These USD amounts and the monthly interval replace all earlier tentative KES prices. The exact distinct premium entitlement benefits have not all been defined; do not advertise extra features that have not been built.
+
+Before enabling paid checkout, create five monthly Stripe Products/Prices on the *confirmed correct merchant account*, and configure all five backend Price IDs. The connected Stripe session currently identifies a live-mode account named "New business"; no live catalog mutation or charge is performed by this repository update. The app remains in non-payment mode until full integration and webhook verification are deployed.
 
 ## Secret entry provisioned through AppDeploy
 
 - STRIPE_TEST_RESTRICTED_KEY
 - STRIPE_TEST_WEBHOOK_SECRET
 - STRIPE_TEST_PRICE_GROWTH
+- STRIPE_TEST_PRICE_FAITH
 - STRIPE_TEST_PRICE_FAITH_PLUS
 - STRIPE_TEST_PRICE_KINGDOM
+- STRIPE_TEST_PRICE_SONSHIP
 
 The user must supply these in the secure AppDeploy form. Do not paste values in ChatGPT. An expired secret-entry field must be recreated before it can be bound.
 

@@ -102,5 +102,23 @@
       "Open the published message from the public library"
     ],
     "expected": "The invalid entry is rejected, the supported uploaded file is linked to a published message, and the visitor can open its media player."
+  },
+  {
+    "name": "Display six USD monthly subscription tiers correctly",
+    "viewport": "mobile",
+    "covers": [
+      "six paid and free membership choices",
+      "USD per month display",
+      "free audio/video limits",
+      "no unverified Stripe checkout"
+    ],
+    "description": "Confirm updated membership tiers are correctly shown and the Free plan still limits access to three audio teachings and two videos.",
+    "steps": [
+      "Open the member Subscription page",
+      "Check Free $0, Growth $5, Faith $10, Faith Plus $15, Kingdom $30 and Sonship $50 per month",
+      "Check Free access policy",
+      "Verify no live charges can start without a configured checkout"
+    ],
+    "expected": "Six plans display correct USD monthly amounts. The Free quota remains three audios and two videos; checkout is disabled until the Stripe integration is deployed and verified."
   }
 ]

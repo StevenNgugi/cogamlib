@@ -1,0 +1,38 @@
+{
+  "currency": "USD",
+  "interval": "month",
+  "plans": [
+    {
+      "name": "Free",
+      "amountCents": 0,
+      "priceUsd": 0,
+      "audioLimit": 3,
+      "videoLimit": 2
+    },
+    {
+      "name": "Growth",
+      "amountCents": 500,
+      "priceUsd": 5
+    },
+    {
+      "name": "Faith",
+      "amountCents": 1000,
+      "priceUsd": 10
+    },
+    {
+      "name": "Faith Plus",
+      "amountCents": 1500,
+      "priceUsd": 15
+    },
+    {
+      "name": "Kingdom",
+      "amountCents": 3000,
+      "priceUsd": 30
+    },
+    {
+      "name": "Sonship",
+      "amountCents": 5000,
+      "priceUsd": 50
+    }
+  ]
+}

@@ -52,10 +52,12 @@ async function memberRecord(uid: string, name: string, email: string) {
   return { id, item: created };
 }
 const PLANS = [
- { name: 'Free', priceKes: 0, audio: 3, video: 2, description: '3 audio teachings and 2 videos' },
- { name: 'Growth', priceKes: 299, audio: 15, video: 10, description: 'Expanded teaching access' },
- { name: 'Faith Plus', priceKes: 699, audio: 70, video: 50, description: 'Full teaching library, subject to item restrictions' },
- { name: 'Kingdom', priceKes: 1299, audio: 100000, video: 100000, description: 'Full library and premium resources' }
+  { name: 'Free', priceUsd: 0, currency: 'USD', billingInterval: 'month', audio: 3, video: 2, description: '3 audio teachings and 2 videos' },
+  { name: 'Growth', priceUsd: 5, currency: 'USD', billingInterval: 'month', audio: 15, video: 10, description: 'Expanded teaching access' },
+  { name: 'Faith', priceUsd: 10, currency: 'USD', billingInterval: 'month', audio: 40, video: 25, description: 'More teaching resources' },
+  { name: 'Faith Plus', priceUsd: 15, currency: 'USD', billingInterval: 'month', audio: 70, video: 50, description: 'Extended teaching access' },
+  { name: 'Kingdom', priceUsd: 30, currency: 'USD', billingInterval: 'month', audio: 100000, video: 100000, description: 'Full teaching library' },
+  { name: 'Sonship', priceUsd: 50, currency: 'USD', billingInterval: 'month', audio: 100000, video: 100000, description: 'Full library; additional benefits to be defined' },
 ] as const;
 async function getPublicSettings() {
  const page = await db.list<Record<string, unknown>>('cogam_site_settings', { limit: 5 });
@@ -212,7 +214,7 @@ export const handler = router({
       const b = (body || {}) as { plan?: string; reference?: string };
       const plan = PLANS.find(p => p.name === b.plan && p.name !== 'Free');
       if (!plan) return error('Choose a valid upgrade',400);
-      const [id] = await db.add('cogam_subscription_requests', [{userId:user!.userId,email:user!.email||'',plan:plan.name,priceKes:plan.priceKes,reference:clean(b.reference,120),status:'pending',createdAt:new Date().toISOString()}]);
+      const [id] = await db.add('cogam_subscription_requests', [{userId:user!.userId,email:user!.email||'',plan:plan.name,priceUsd:plan.priceUsd,currency:'USD',billingInterval:'month',reference:clean(b.reference,120),status:'pending',createdAt:new Date().toISOString()}]);
       return json({id,status:'pending',message:'Request received. No payment has been taken or verified.'},201);
     },
   ],

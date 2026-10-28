@@ -4,7 +4,7 @@ Status: source implementation staged in GitHub. Not deployed while AppDeploy dep
 ## Newly implemented server endpoints
 - Authenticated member records, display names, external HTTPS profile picture URL and theme preference
 - Watchlist/saved teachings, likes, watch history and comments (comments are pending until approved by an administrator)
-- Four plan definitions with indicative KES prices: Free 0; Growth 299; Faith Plus 699; Kingdom 1299
+- Six USD monthly tiers confirmed: Free $0, Growth $5, Faith $10, Faith Plus $15, Kingdom $30, Sonship $50
 - Server-restricted audio/video URL disclosure; Free opens three distinct audio items and two distinct videos
 - Explicit Free/Premium access on uploaded items, optional downloads only on non-Free membership
 - Pending subscription requests and independent-payment-verification safeguard
