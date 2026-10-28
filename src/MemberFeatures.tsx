@@ -26,6 +26,7 @@ export function MemberDock(){
  const [msg,setMsg]=useState('');
  const [name,setName]=useState('');
  const [image,setImage]=useState('');
+ const [photoUploading,setPhotoUploading]=useState(false);
  const [settings,setSettings]=useState<SiteSettings|null>(null);
  const [plans,setPlans]=useState<Plan[]>([]);
  const [contents,setContents]=useState<Media[]>([]);
@@ -47,6 +48,22 @@ export function MemberDock(){
  useEffect(()=>{void load()},[]);
  const signin=async()=>{setLoading(true);setMsg('');try{await auth.signIn();await load();setSection('Profile');setOpened(false)}catch(e){setMsg(errMessage(e))}finally{setLoading(false)}};
  const logout=async()=>{await auth.signOut();setLogged(false);setMember(null);setOpened(false);setSection('');setMsg('')};
+ const uploadPhoto=async(file:File)=>{
+  if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1400000){setMsg('Choose a JPG, PNG or WebP image under 1.4 MB.');return}
+  setPhotoUploading(true);setMsg('');
+  try{
+    const base64=await new Promise<string>((resolve,reject)=>{
+      const reader=new FileReader();
+      reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');
+      reader.onerror=()=>reject(new Error('Could not read this image'));
+      reader.readAsDataURL(file);
+    });
+    const r=await api.post('/api/member/avatar',{contentType:file.type,base64});
+    setImage(r.data.image);
+    if(member)setMember({...member,image:r.data.image});
+    setMsg('Profile picture uploaded successfully');
+  }catch(e){setMsg(errMessage(e))}finally{setPhotoUploading(false)}
+ };
  const save=async()=>{setLoading(true);setMsg('');try{const r=await api.put('/api/member/me',{name,image});setMember(r.data.member);setMsg('Profile saved')}catch(e){setMsg(errMessage(e))}finally{setLoading(false)}};
  const choose=(s:string)=>{setSection(s);setOpened(false);setMsg('')};
  const upgradereq=async()=>{if(!member){await signin();return}setLoading(true);try{const r=await api.post('/api/member/subscription-request',{plan:planChoice,reference});setMsg(r.data.message)}catch(e){setMsg(errMessage(e))}finally{setLoading(false)}};
@@ -73,7 +90,7 @@ export function MemberDock(){
      <div className="member-overlay-top"><h2>{section}</h2><button style={tinyButton} aria-label="Close page" onClick={()=>setSection('')}><X size={17}/></button></div>
      {msg&&<p role="status" style={{padding:12,background:'#e9f9eb',borderRadius:10,color:'#254671'}}>{msg}</p>}
      {!logged&&['Profile','Wallet','Subscription','Watch History','Watchlist'].includes(section)&&<div style={panel}><h3>Create an account or log in</h3><p>Use your email or a supported account provider to keep your library and subscription associated with your own account.</p><button style={tinyButton} disabled={loading} onClick={()=>void signin()}>Register / Log in</button></div>}
-     {section==='Profile'&&member&&<div style={panel}><p>Plan: <strong>{member.plan}</strong></p><label>Display name<input style={inputStyle} value={name} maxLength={90} onChange={e=>setName(e.target.value)}/></label><label>Profile photo HTTPS URL<input style={inputStyle} value={image} placeholder="https://..." onChange={e=>setImage(e.target.value)}/></label><p style={{fontSize:12}}>Profile photo uploads will be added after secure image-storage support is configured. For now, use an image URL.</p><button style={tinyButton} disabled={loading} onClick={()=>void save()}>Save changes</button></div>}
+     {section==='Profile'&&member&&<div style={panel}><p>Plan: <strong>{member.plan}</strong></p><label>Display name<input style={inputStyle} value={name} maxLength={90} onChange={e=>setName(e.target.value)}/></label><label>Upload your profile photo<input type="file" accept="image/jpeg,image/png,image/webp" style={inputStyle} disabled={photoUploading} onChange={e=>{const f=e.target.files?.[0];if(f)void uploadPhoto(f)}}/></label>{image&&<img src={image} alt="Your profile" style={{width:86,height:86,objectFit:'cover',borderRadius:'50%',margin:12}}/>}<p style={{fontSize:12}}>Use a JPG, PNG or WebP image under 1.4 MB.</p><button style={tinyButton} disabled={loading} onClick={()=>void save()}>Save changes</button></div>}
      {section==='Send Email'&&<div style={panel}><p>Contact the ministry using its configured email address.</p>{settings?.contactEmail?<a style={tinyButton} href={'mailto:'+settings.contactEmail}>Send email to COGAM</a>:<p>The administrator has not published a contact email yet.</p>}</div>}
      {section==='Wallet'&&member&&<div style={panel}><h3>Wallet</h3><p>Payments and wallet balances are not activated. No amount has been charged or credited.</p><p>Current access: <strong>{member.plan}</strong></p></div>}
      {section==='Subscription'&&<div style={{display:'grid',gridTemplateColumns:'repeat(auto-fit,minmax(190px,1fr))',gap:12}}>
@@ -101,10 +118,13 @@ export function AdminControlCenter(){
  const [open,setOpen]=useState(false);
  const [settings,setSettings]=useState<SiteSettings|null>(null);
  const [members,setMembers]=useState<any[]>([]);
+ const changeMember=async(id:string,suspended:boolean)=>{try{await api.put('/api/admin/members/'+id,{suspended});setInfo('Member account status updated');await refresh()}catch(e){setInfo(errMessage(e))}};
  const [requests,setRequests]=useState<any[]>([]);
  const [comments,setComments]=useState<any[]>([]);
  const [admins,setAdmins]=useState<any[]>([]);
+ const [logoUploading,setLogoUploading]=useState(false);
  const [email,setEmail]=useState('');
+ const changeAdmin=async(id:string,approved:boolean)=>{try{await api.put('/api/admin/approvals/'+id,{approved});setInfo('Administrator approval updated');await refresh()}catch(e){setInfo(errMessage(e))}};
  const [info,setInfo]=useState('');
  const [loading,setLoading]=useState(false);
  const refresh=async()=>{try{const [s,m,r,c,a]=await Promise.all([
@@ -112,9 +132,18 @@ export function AdminControlCenter(){
  setSettings(s.data.settings);setMembers(m.data.members||[]);setRequests(r.data.requests||[]);setComments(c.data.comments||[]);setAdmins(a.data.admins||[]);
  }catch(e){setInfo(errMessage(e))}};
  const start=()=>{setOpen(true);void refresh()};
+ const uploadLogo=async(file:File)=>{
+  if(!['image/jpeg','image/png','image/webp'].includes(file.type)||file.size>1400000){setInfo('Choose a logo under 1.4 MB.');return}
+  setLogoUploading(true);
+  try{
+    const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=()=>reject(new Error('Unable to read logo'));reader.readAsDataURL(file)});
+    const r=await api.post('/api/admin/logo',{base64,contentType:file.type});
+    setSettings(old=>old?{...old,logoUrl:r.data.logoUrl}:old);setInfo('New ministry logo uploaded');
+  }catch(e){setInfo(errMessage(e))}finally{setLogoUploading(false)}
+ };
  const saveSettings=async()=>{setLoading(true);try{await api.put('/api/admin/settings',settings);setInfo('Site settings saved')}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
  const approveAdmin=async()=>{setLoading(true);try{await api.post('/api/admin/approvals',{email});setEmail('');setInfo('Administrator approved');await refresh()}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
- const review=async(id:string,approve:boolean)=>{if(approve&&!window.confirm('Only approve this plan after independently verifying a real payment. Has payment been verified?'))return;setLoading(true);try{await api.put('/api/admin/subscription/'+id,{approve,verified:approve});setInfo('Subscription request reviewed');await refresh()}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
+ const review=async(id:string)=>{setLoading(true);try{await api.put('/api/admin/subscription/'+id,{decision:'decline'});setInfo('Subscription request declined. Only Stripe-verified payments can activate membership.');await refresh()}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
  const moderate=async(id:string,approve:boolean)=>{try{await api.put('/api/admin/comments/'+id,{approve});setInfo('Comment reviewed');await refresh()}catch(e){setInfo(errMessage(e))}};
  return <div className="cogam-admin-controls"><button style={{...tinyButton,background:'#d5efbb'}} onClick={start}><Settings size={17}/> Extended Admin Controls</button>
  {open&&<div className="member-overlay" role="dialog" aria-modal="true" aria-label="Admin management">
@@ -122,11 +151,12 @@ export function AdminControlCenter(){
    <div className="member-overlay-top"><h2>CDL Management</h2><button style={tinyButton} onClick={()=>setOpen(false)}><X size={17}/></button></div>
    <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:25}}>{['Site Settings','Members','Subscriptions','Comments','Admin Approvals'].map(x=><button key={x} style={{...tinyButton,background:tab===x?'#d7e8ff':'white'}} onClick={()=>setTab(x)}>{x}</button>)}</div>
    {info&&<p role="status">{info}</p>}
-   {tab==='Site Settings'&&settings&&<div style={panel}><p>Changes are visible to visitors after saving. Only verified administrators can edit these settings.</p>{(['heading','announcement','primary','accent','logoUrl','youtube','facebook','tiktok','instagram','contactEmail'] as const).map(key=><label key={key} style={{display:'block',marginBottom:14,fontWeight:700}}>{key}<input style={inputStyle} value={settings[key]||''} onChange={e=>setSettings(old=>old?{...old,[key]:e.target.value}:old)}/></label>)}<button disabled={loading} style={tinyButton} onClick={()=>void saveSettings()}>Save website settings</button></div>}
-   {tab==='Members'&&<div>{members.map(m=><div style={{...panel,marginBottom:10}} key={m.id}><strong>{m.name||m.email}</strong><p>{m.email} · {m.plan||'Free'}</p></div>)}</div>}
-   {tab==='Subscriptions'&&<div>{requests.map(r=><div style={{...panel,marginBottom:10}} key={r.id}><h3>{r.email}</h3><p>{r.plan} · USD ${r.priceUsd}/month · {r.status}</p>{r.reference&&<p>Reference: {r.reference}</p>}{r.status==='pending'&&<div style={{display:'flex',gap:10}}><button style={tinyButton} onClick={()=>void review(r.id,true)}>Confirm verified payment</button><button style={tinyButton} onClick={()=>void review(r.id,false)}>Decline</button></div>}</div>)}</div>}
+   {tab==='Site Settings'&&settings&&<div style={panel}><p>Changes are visible to visitors after saving. Only verified administrators can edit these settings.</p>{(['heading','heroHeading','heroSubtitle','footerText','announcement','primary','accent','logoUrl','youtube','facebook','tiktok','instagram','contactEmail'] as const).map(key=><label key={key} style={{display:'block',marginBottom:14,fontWeight:700}}>{key}<input style={inputStyle} value={settings[key]||''} onChange={e=>setSettings(old=>old?{...old,[key]:e.target.value}:old)}/></label>)}<label>Upload ministry logo<input type="file" disabled={logoUploading} accept="image/jpeg,image/png,image/webp" style={inputStyle} onChange={e=>{const f=e.target.files?.[0];if(f)void uploadLogo(f)}}/></label>
+    <button disabled={loading} style={tinyButton} onClick={()=>void saveSettings()}>Save website settings</button></div>}
+   {tab==='Members'&&<div>{members.map(m=><div style={{...panel,marginBottom:10}} key={m.id}><strong>{m.name||m.email}</strong><p>{m.email} · {m.plan||'Free'} · {m.suspended?'Suspended':'Active'}</p><button style={tinyButton} onClick={()=>void changeMember(m.id,!m.suspended)}>{m.suspended?'Reactivate account':'Suspend account'}</button></div>)}</div>}
+   {tab==='Subscriptions'&&<div>{requests.map(r=><div style={{...panel,marginBottom:10}} key={r.id}><h3>{r.email}</h3><p>{r.plan} · USD ${r.priceUsd}/month · {r.status}</p>{r.reference&&<p>Reference: {r.reference}</p>}{r.status==='pending'&&<div style={{display:'flex',gap:10}}><button style={tinyButton} disabled={loading} onClick={()=>void review(r.id)}>Decline request</button><span style={{fontSize:12}}>Payment activation is unavailable until Stripe webhook verification is deployed.</span></div>}</div>)}</div>}
    {tab==='Comments'&&<div>{comments.map(c=><div style={{...panel,marginBottom:10}} key={c.id}><strong>{c.author}</strong><p>{c.text}</p><p>Status: {c.moderated?'Published':'Awaiting moderation'}</p><button style={tinyButton} onClick={()=>void moderate(c.id,true)}>Approve</button><button style={{...tinyButton,marginLeft:8}} onClick={()=>void moderate(c.id,false)}>Hide</button></div>)}</div>}
-   {tab==='Admin Approvals'&&<div style={panel}><h3>Approved administrators</h3>{admins.map(a=><p key={a.id}>{a.email}</p>)}<label>Approve administrator email<input style={inputStyle} value={email} onChange={e=>setEmail(e.target.value)}/></label><p>For security, only the original owner can approve additional administrators.</p><button disabled={loading} style={tinyButton} onClick={()=>void approveAdmin()}>Approve email</button></div>}
+   {tab==='Admin Approvals'&&<div style={panel}><h3>Approved administrators</h3>{admins.map(a=><div key={a.id} style={{display:'flex',gap:12,alignItems:'center',marginBottom:9}}><span>{a.email} · {a.approved?'Approved':'Revoked'}</span><button style={tinyButton} onClick={()=>void changeAdmin(a.id,!a.approved)}>{a.approved?'Revoke':'Approve'}</button></div>)}<label>Approve administrator email<input style={inputStyle} value={email} onChange={e=>setEmail(e.target.value)}/></label><p>For security, only the original owner can approve additional administrators.</p><button disabled={loading} style={tinyButton} onClick={()=>void approveAdmin()}>Approve email</button></div>}
   </div>
  </div>}
  </div>;
