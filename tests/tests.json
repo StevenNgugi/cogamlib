@@ -1,0 +1,103 @@
+[
+  {
+    "name": "Browse topics and see the public library on mobile",
+    "sanity": true,
+    "viewport": "mobile",
+    "covers": [
+      "public library route GET /api/library",
+      "topic navigation",
+      "mobile responsive layout",
+      "empty collection message"
+    ],
+    "description": "Public visitors can explore topics without authentication, including before the first teaching is published.",
+    "steps": [
+      "Open the home page without signing in",
+      "Select Categories or Topics",
+      "Choose Faith & Victory",
+      "Review Browse messages and category selection"
+    ],
+    "expected": "The Faith & Victory topic is selected, the browse view is available, and either published content or an accurate empty-library message is displayed."
+  },
+  {
+    "name": "Search, format filters, and personal saved messages",
+    "viewport": "desktop",
+    "covers": [
+      "library search and format filtering",
+      "member bookmarks in local storage",
+      "My Library navigation",
+      "GET /api/library"
+    ],
+    "description": "Visitors can search published content and saved messages are local to their browser.",
+    "steps": [
+      "Open Browse",
+      "Enter a search word",
+      "Change the format to Audio",
+      "Open My Library",
+      "Return to Browse"
+    ],
+    "expected": "Search and format filters update the results without errors, while My Library shows bookmarked media or the saved-library empty state."
+  },
+  {
+    "name": "Deny unauthorized admin dashboard access",
+    "viewport": "desktop",
+    "covers": [
+      "admin login flow",
+      "admin email allowlist",
+      "GET /api/admin/me authorization",
+      "GET /api/admin/items authorization",
+      "unauthorized upload protection",
+      "role separation"
+    ],
+    "description": "A public visitor cannot manage or publish library content without an allowlisted account.",
+    "steps": [
+      "Open Admin Portal from the header without an admin sign-in",
+      "Review the restricted-access page",
+      "Try to proceed without an approved administrator identity"
+    ],
+    "expected": "The upload and management dashboard is not available to anonymous visitors or unauthorized identities. A secure administrator sign-in prompt is shown."
+  },
+  {
+    "name": "Create, publish, edit and remove a teaching as an authorized admin",
+    "viewport": "desktop",
+    "covers": [
+      "POST /api/admin/items",
+      "PUT /api/admin/items/:id",
+      "DELETE /api/admin/items/:id",
+      "GET /api/admin/items",
+      "public published visibility",
+      "draft state",
+      "delete confirmation"
+    ],
+    "description": "Approved admins can manage persistent media metadata and publication states.",
+    "steps": [
+      "Sign in with an approved administrator email",
+      "Open Upload Content and create an Article called Test Devotional with a description",
+      "Save it as a draft and check that it does not appear publicly",
+      "Edit it and enable Publish now",
+      "Check that Test Devotional appears in the public library",
+      "Return to admin, delete the content and accept confirmation"
+    ],
+    "expected": "Draft content remains private, publishing makes it visible to visitors, and a confirmed deletion removes it from the public list after refresh."
+  },
+  {
+    "name": "Upload a supported file and reject invalid media submissions",
+    "viewport": "desktop",
+    "covers": [
+      "POST /api/admin/upload",
+      "storage write",
+      "storage signed media URLs",
+      "media playback or eBook opening",
+      "required media validation",
+      "file type and size guardrails"
+    ],
+    "description": "Approved admins can upload small media files while large files must be supplied as externally hosted HTTPS links.",
+    "steps": [
+      "Sign in as an approved administrator",
+      "Start a new Audio message and enter a title but no URL or file",
+      "Confirm saving shows a validation warning",
+      "Select a small MP3 file under 3.5 MB and publish",
+      "Open the published message from the public library"
+    ],
+    "expected": "The invalid entry is rejected, the supported uploaded file is linked to a published message, and the visitor can open its media player."
+  }
+]
