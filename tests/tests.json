@@ -7,16 +7,19 @@
       "public library route GET /api/library",
       "topic navigation",
       "mobile responsive layout",
-      "empty collection message"
+      "empty collection message",
+      "featured Apostle Anthony Ngugi Mburu section",
+      "blue purple white luminous green visual theme"
     ],
     "description": "Public visitors can explore topics without authentication, including before the first teaching is published.",
     "steps": [
       "Open the home page without signing in",
       "Select Categories or Topics",
       "Choose Faith & Victory",
-      "Review Browse messages and category selection"
+      "Review Browse messages and category selection",
+      "Check the home page feature for Apostle Anthony Ngugi Mburu"
     ],
-    "expected": "The Faith & Victory topic is selected, the browse view is available, and either published content or an accurate empty-library message is displayed."
+    "expected": "The Faith & Victory topic is selected, the browse view is available, and either published content or an accurate empty-library message is displayed. The home page features Apostle Anthony Ngugi Mburu in a blue/purple themed section."
   },
   {
     "name": "Search, format filters, and personal saved messages",

@@ -567,6 +567,20 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
                 </div>
               </div>
             </section>
+
+            <section className="featured-apostle">
+              <div className="container featured-apostle-inner">
+                <div className="apostle-copy">
+                  <div className="eyebrow">MEET OUR SPIRITUAL LEADER</div>
+                  <h2>Apostle Anthony<br />Ngugi Mburu<span className="accent-dot">.</span></h2>
+                  <p>Explore biblical teachings and faith-building resources from COGAM Word of Truth. Discover messages for Christian living, prayer, worship and spiritual growth.</p>
+                  <button className="primary-button" onClick={() => browseCat('All Topics')}>
+                    Explore Teachings <ArrowRight size={17} />
+                  </button>
+                </div>
+                <div className="apostle-placeholder" aria-hidden="true">✝</div>
+              </div>
+            </section>
             <section className="feature-strip">
               <div className="container strip-grid">
                 <span>
