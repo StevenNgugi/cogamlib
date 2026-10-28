@@ -47,6 +47,7 @@ import {
   Clock3,
 } from 'lucide-react';
 import { api, auth } from '@appdeploy/client';
+import { MemberDock, AdminControlCenter } from './MemberFeatures';
 
 type Item = {
   id: string;
@@ -448,6 +449,7 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
         <Sparkles size={14} /> Welcome to the Word of Truth digital experience{' '}
         <span>✦</span> Learn. Grow. Be transformed.
       </div>
+      <MemberDock />
       <header className="site-header">
         <div className="container header-inner">
           <button className="brand-button" onClick={() => navigate('home')}>
@@ -1206,6 +1208,7 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
               </button>
             </div>
           )}
+          <AdminControlCenter />
           {view === 'dashboard' && (
             <>
               <div className="stats-grid">
