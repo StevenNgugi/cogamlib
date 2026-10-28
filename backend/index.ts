@@ -37,9 +37,9 @@ const adminGate: RouterMiddleware = async ctx => {
 };
 const adminOnly = [requireAuth(), adminGate];
 const userTable = (uid: string) => 'cogam_member_' + uid.replace(/[^a-zA-Z0-9]/g, '');
-type Member = { name: string; email: string; image: string; plan: string; saved: string[]; liked: string[]; history: string[]; audioOpened: string[]; videoOpened: string[]; theme: string };
+type Member = { name: string; email: string; image: string; imagePath?: string; suspended?: boolean; plan: string; saved: string[]; liked: string[]; history: string[]; audioOpened: string[]; videoOpened: string[]; theme: string };
 const defaultMember = (name: string, email: string): Member => ({
-  name, email, image: '', plan: 'Free', saved: [], liked: [], history: [], audioOpened: [], videoOpened: [], theme: 'system'
+  name, email, image: '', imagePath: '', suspended: false, plan: 'Free', saved: [], liked: [], history: [], audioOpened: [], videoOpened: [], theme: 'system'
 });
 async function memberRecord(uid: string, name: string, email: string) {
   const table = userTable(uid);
@@ -61,7 +61,7 @@ const PLANS = [
 ] as const;
 async function getPublicSettings() {
  const page = await db.list<Record<string, unknown>>('cogam_site_settings', { limit: 5 });
- return page.items[0] || { heading: 'COGAM DIGITAL LIBRARY', announcement: '', primary: '#233cc4', accent: '#b2ff56', logoUrl: '', youtube: '', facebook: '', instagram: '', tiktok: '', contactEmail: '' };
+ return page.items[0] || { heading: 'COGAM DIGITAL LIBRARY', heroHeading: 'Grow in the Word. Live in His Truth.', heroSubtitle: 'Explore faith-building teachings from COGAM Word of Truth.', footerText: 'Rooted in the Word. Growing in truth.', announcement: '', primary: '#293EBA', accent: '#B2FF56', logoUrl: '', logoPath: '', sections: ['Home','Browse','Categories','My Library','Everyday Solutions','Teenager','Youths','Kids / Sunday School'], youtube: '', facebook: '', instagram: '', tiktok: '', contactEmail: '' };
 }
 
 
@@ -138,12 +138,18 @@ export const handler = router({
     },
   ],
 
-  'GET /api/settings': [async () => json({ settings: await getPublicSettings(), plans: PLANS })],
+  'GET /api/settings': [async ()=>{
+    const settings=await getPublicSettings();
+    let logoUrl=settings.logoUrl||'';
+    if(typeof settings.logoPath==='string'&&settings.logoPath)logoUrl=(await storage.url([settings.logoPath]))[0]?.url||logoUrl;
+    return json({settings:{...settings,logoUrl},plans:PLANS});
+  }],
   'GET /api/member/me': [
     requireAuth(),
     async ({ user }) => {
       const row = await memberRecord(user!.userId, user!.name || '', user!.email || '');
-      return json({ member: row.item });
+      const image=row.item.imagePath ? (await storage.url([row.item.imagePath]))[0]?.url || '' : row.item.image;
+      return json({member:{...row.item,image}});
     },
   ],
   'PUT /api/member/me': [
@@ -156,9 +162,27 @@ export const handler = router({
         image: httpsUrl(b.image) || row.item.image,
         theme: ['light','dark','system'].includes(clean(b.theme)) ? clean(b.theme) : row.item.theme
       };
-      await db.update(userTable(user!.userId), [{ id: row.id, record: updated }]);
-      return json({ member: updated });
+      const [ok]=await db.tx.update(userTable(user!.userId),[{id:row.id,record:{name:updated.name,image:updated.image,theme:updated.theme}}],{patch:true});
+      if(!ok)return error('Could not save profile',409);
+      const image=updated.imagePath ? (await storage.url([updated.imagePath]))[0]?.url || '' : updated.image;
+      return json({member:{...updated,image}});
     },
+  ],
+  'POST /api/member/avatar': [
+    requireAuth(),
+    async ({user,body})=>{
+      const b=(body||{}) as {base64?:string;contentType?:string};
+      const type=clean(b.contentType,60), data=clean(b.base64,2000001);
+      if(!['image/png','image/jpeg','image/webp'].includes(type) || !data || data.length>2000000 || !/^[a-zA-Z0-9+/]+={0,2}$/.test(data))return error('Upload a JPG, PNG or WebP image below 1.4MB',400);
+      const ext=type==='image/png'?'png':type==='image/webp'?'webp':'jpg';
+      const path='avatars/'+user!.userId.replace(/[^a-zA-Z0-9]/g,'')+'-'+Date.now()+'.'+ext;
+      const [ok]=await storage.write([{path,content:data,contentType:type}]);
+      if(!ok)return error('Upload failed',500);
+      const row=await memberRecord(user!.userId,user!.name||'',user!.email||'');
+      const [saved]=await db.tx.update(userTable(user!.userId),[{id:row.id,record:{imagePath:path,image:''}}],{patch:true});
+      if(!saved)return error('Could not save profile picture',409);
+      return json({image:(await storage.url([path]))[0]?.url||''});
+    }
   ],
   'POST /api/member/action': [
     requireAuth(),
@@ -169,6 +193,7 @@ export const handler = router({
       const [item] = await db.get<MediaItem>(TABLE, [id]);
       if (!item?.published) return error('Content not found', 404);
       const row = await memberRecord(user!.userId, user!.name || '', user!.email || '');
+      if(row.item.suspended===true)return error('This account is suspended. Contact the administrator.',403);
       const updated = { ...row.item };
       if (b.action === 'like' || b.action === 'save') {
         const field = b.action === 'like' ? 'liked' : 'saved';
@@ -192,6 +217,7 @@ export const handler = router({
       const [item] = await db.get<MediaItem & { access?: string; downloadable?: boolean }>(TABLE, [params.id]);
       if (!item?.published) return error('Media not found', 404);
       const row = await memberRecord(user!.userId, user!.name || '', user!.email || '');
+      if(row.item.suspended===true)return error('Account access has been suspended',403);
       const plan = PLANS.find(p => p.name === row.item.plan) || PLANS[0];
       const required = item.access || 'Free';
       if (required === 'Premium' && row.item.plan === 'Free') return error('Upgrade to access this premium teaching', 403);
@@ -231,21 +257,31 @@ export const handler = router({
   ],
   'PUT /api/admin/subscription/:id': [
     ...adminOnly,
-    async ({params,body}) => {
-      const b=(body||{}) as {approve?:boolean; verified?:boolean};
-      const [request]=await db.get<{userId:string;plan:string;email:string;status:string}>('cogam_subscription_requests',[params.id]);
-      if(!request)return error('Request not found',404);
-      if(request.status!=='pending')return error('Request already reviewed',409);
-      if(b.approve && !b.verified)return error('Payment must be independently verified before approval',400);
-      if(b.approve){
-        const page=await db.list<Member>(userTable(request.userId),{limit:5});
-        if(!page.items[0])return error('Member record not found',404);
-        const {id,...member}=page.items[0];
-        await db.update(userTable(request.userId),[{id,record:{...member,plan:request.plan}}]);
-      }
-      await db.update('cogam_subscription_requests',[{id:params.id,record:{...request,status:b.approve?'approved':'declined',reviewedAt:new Date().toISOString()}}]);
-      return json({status:b.approve?'approved':'declined'});
-    },
+    async ({params,body})=>{
+      const decision=((body||{}) as {decision?:string}).decision;
+      if(decision!=='decline')return error('Paid access can only be activated after a verified Stripe webhook. Billing is not active.',409);
+      const [record]=await db.get<{status:string}>('cogam_subscription_requests',[params.id],{consistent:true});
+      if(!record)return error('Request not found',404);
+      if(record.status!=='pending')return error('Request already reviewed',409);
+      const [ok]=await db.tx.update('cogam_subscription_requests',[{id:params.id,record:{status:'declined',reviewedAt:new Date().toISOString()}}],{patch:true});
+      return ok?json({status:'declined'}):error('Request was changed',409);
+    }
+  ],
+  'PUT /api/admin/members/:id': [
+    ...adminOnly,
+    async ({params,body})=>{
+      const b=(body||{}) as {suspended?:boolean};
+      if(typeof b.suspended!=='boolean')return error('Invalid account status',400);
+      const [entry]=await db.get<{userId:string;email:string}>('cogam_member_directory',[params.id],{consistent:true});
+      if(!entry)return error('Member not found',404);
+      if(ADMIN_EMAILS.includes((entry.email||'').toLowerCase()))return error('Owner cannot be suspended',403);
+      const page=await db.list<Member>(userTable(entry.userId),{limit:5});
+      if(!page.items[0])return error('Member record missing',404);
+      const [ok]=await db.tx.update(userTable(entry.userId),[{id:page.items[0].id,record:{suspended:b.suspended}}],{patch:true});
+      if(!ok)return error('Unable to modify member',409);
+      await db.tx.update('cogam_member_directory',[{id:params.id,record:{suspended:b.suspended}}],{patch:true});
+      return json({updated:true,suspended:b.suspended});
+    }
   ],
   'GET /api/admin/approvals': [
     ...adminOnly,
@@ -262,6 +298,17 @@ export const handler = router({
       return json({id,approved:true},201);
     },
   ],
+  'PUT /api/admin/approvals/:id': [
+    ...adminOnly,
+    async ({user,params,body})=>{
+      if(!ADMIN_EMAILS.includes((user?.email||'').toLowerCase()))return error('Only the owner can change approvals',403);
+      const [record]=await db.get<{email:string}>('cogam_approved_admins',[params.id],{consistent:true});
+      if(!record)return error('Admin approval not found',404);
+      const approved=((body||{}) as {approved?:boolean}).approved===true;
+      const [ok]=await db.tx.update('cogam_approved_admins',[{id:params.id,record:{approved}}],{patch:true});
+      return ok?json({approved}):error('Approval changed',409);
+    }
+  ],
   'GET /api/admin/comments': [
     ...adminOnly,
     async () => json({comments:(await db.list('cogam_comments',{limit:200})).items}),
@@ -275,14 +322,39 @@ export const handler = router({
       return json({saved:true});
     },
   ],
+  'POST /api/admin/logo': [
+    ...adminOnly,
+    async ({body})=>{
+      const b=(body||{}) as {base64?:string;contentType?:string};
+      const type=clean(b.contentType,50), data=clean(b.base64,2000001);
+      if(!['image/png','image/jpeg','image/webp'].includes(type)||!data||data.length>2000000||!/^[a-zA-Z0-9+/]+={0,2}$/.test(data))return error('Choose a PNG, JPG or WebP logo below 1.4MB',400);
+      const ext=type==='image/png'?'png':type==='image/webp'?'webp':'jpg';
+      const path='branding/cogam-logo-'+Date.now()+'.'+ext;
+      const [ok]=await storage.write([{path,content:data,contentType:type}]);
+      if(!ok)return error('Could not upload logo',500);
+      const existing=await db.list<Record<string,unknown>>('cogam_site_settings',{limit:5});
+      if(existing.items[0])await db.tx.update('cogam_site_settings',[{id:existing.items[0].id,record:{logoPath:path,logoUrl:''}}],{patch:true});
+      else await db.add('cogam_site_settings',[{...await getPublicSettings(),logoPath:path,logoUrl:''}]);
+      return json({logoUrl:(await storage.url([path]))[0]?.url||''});
+    }
+  ],
   'PUT /api/admin/settings': [
     ...adminOnly,
     async ({body}) => {
       const b=(body||{}) as Record<string,unknown>;
       const existing=await db.list<Record<string,unknown>>('cogam_site_settings',{limit:5});
-      const allowed=['heading','announcement','primary','accent','logoUrl','youtube','facebook','instagram','tiktok','contactEmail'];
+      const allowed=['heading','heroHeading','heroSubtitle','footerText','announcement','primary','accent','logoUrl','youtube','facebook','instagram','tiktok','contactEmail'];
       const next:Record<string,unknown>={...await getPublicSettings()};
-      for(const key of allowed) if(key in b) next[key]=key.toLowerCase().includes('url')||['youtube','facebook','instagram','tiktok'].includes(key)?httpsUrl(b[key]):clean(b[key],key==='announcement'?2000:180);
+      for(const key of allowed) if(key in b){
+        const value=['logoUrl','youtube','facebook','instagram','tiktok'].includes(key)?httpsUrl(b[key]):clean(b[key],key==='announcement'?1000:250);
+        if(['primary','accent'].includes(key)&&!/^#[a-fA-F0-9]{6}$/.test(value))return error('Colours must be six-digit hex values',400);
+        next[key]=value;
+        if(key==='logoUrl'&&value)next.logoPath='';
+      }
+      if(Array.isArray(b.sections)){
+        const permitted=['Home','Browse','Categories','My Library','Everyday Solutions','Teenager','Youths','Kids / Sunday School'];
+        next.sections=[...new Set(b.sections.filter((v):v is string=>typeof v==='string'&&permitted.includes(v)))];
+      }
       if(existing.items[0]) await db.update('cogam_site_settings',[{id:existing.items[0].id,record:next}]);
       else await db.add('cogam_site_settings',[next]);
       return json({settings:next});
