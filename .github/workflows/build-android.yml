@@ -1,0 +1,53 @@
+name: Build COGAM DIGITAL LIBRARY APK
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'android/**'
+      - '.github/workflows/build-android.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  android-apk:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+      - name: Set up Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.10.2'
+      - name: Install Android SDK platform
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+      - name: Build installable debug APK
+        working-directory: android
+        run: gradle --no-daemon --stacktrace :app:assembleDebug
+      - name: Prepare downloadable APK
+        run: |
+          mkdir -p release
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/COGAM-Digital-Library-v1.0.0.apk
+      - name: Upload APK artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: COGAM-Digital-Library-APK
+          path: release/COGAM-Digital-Library-v1.0.0.apk
+      - name: Publish public APK download
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          if gh release view android-v1.0.0 >/dev/null 2>&1; then
+            gh release upload android-v1.0.0 release/COGAM-Digital-Library-v1.0.0.apk --clobber
+          else
+            gh release create android-v1.0.0 release/COGAM-Digital-Library-v1.0.0.apk --title "COGAM DIGITAL LIBRARY Android v1.0.0" --notes "Android app for COGAM DIGITAL LIBRARY. Installs outside the Play Store. This first build is a debug-signed WebView client of the live online library and requires internet access. Login providers may require the external browser."
+          fi
