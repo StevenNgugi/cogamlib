@@ -3,7 +3,7 @@ import { api, auth } from '@appdeploy/client';
 import { UserRound, Menu, X, LogOut, Mail, Wallet, CreditCard, History, Bookmark, Palette, Info, HelpCircle, Shield, Megaphone, Users, Youtube, Facebook, Instagram, CheckCircle2, Lock, Send, Heart, Eye, Settings, MessageCircle, ChevronRight } from 'lucide-react';
 
 type Member={name:string;email:string;image:string;plan:string;saved:string[];liked:string[];history:string[];audioOpened:string[];videoOpened:string[];theme:string};
-type SiteSettings={heading:string;announcement:string;primary:string;accent:string;logoUrl:string;youtube:string;facebook:string;instagram:string;tiktok:string;contactEmail:string};
+type SiteSettings={heading:string;heroHeading?:string;heroSubtitle?:string;footerText?:string;announcement:string;primary:string;accent:string;logoUrl:string;logoPath?:string;sections?:string[];youtube:string;facebook:string;instagram:string;tiktok:string;contactEmail:string};
 type Plan={name:string;priceUsd:number;currency:string;billingInterval:string;audio:number;video:number;description:string};
 type Media={id:string;title:string;speaker:string;category:string;format:string;coverUrl?:string;audience?:string};
 const sections=['Profile','Send Email','Wallet','Subscription','Watch History','Watchlist','Themes','About CDL','FAQs','Privacy Policy','Everyday Solutions','Teenager','Youths','Kids / Sunday School'];
@@ -36,6 +36,8 @@ export function MemberDock(){
   try{
    const s=await api.get('/api/settings');
    setSettings(s.data.settings);
+   if(s.data.settings?.primary&&/^#[0-9a-fA-F]{6}$/.test(s.data.settings.primary))document.documentElement.style.setProperty('--cogam-primary',s.data.settings.primary);
+   if(s.data.settings?.accent&&/^#[0-9a-fA-F]{6}$/.test(s.data.settings.accent))document.documentElement.style.setProperty('--cogam-accent',s.data.settings.accent);
    setPlans(s.data.plans||[]);
    const c=await api.get('/api/library'); setContents(c.data.items||[]);
   }catch(e){setMsg(errMessage(e))}
@@ -46,7 +48,7 @@ export function MemberDock(){
   }catch(e){setMsg(errMessage(e))}
  };
  useEffect(()=>{void load()},[]);
- const signin=async()=>{setLoading(true);setMsg('');try{await auth.signIn();await load();setSection('Profile');setOpened(false)}catch(e){setMsg(errMessage(e))}finally{setLoading(false)}};
+ const signin=async()=>{setLoading(true);setMsg('');try{await auth.signInWithRedirect()}catch(e){setMsg(errMessage(e));setLoading(false)}};
  const logout=async()=>{await auth.signOut();setLogged(false);setMember(null);setOpened(false);setSection('');setMsg('')};
  const uploadPhoto=async(file:File)=>{
   if(!['image/png','image/jpeg','image/webp'].includes(file.type)||file.size>1400000){setMsg('Choose a JPG, PNG or WebP image under 1.4 MB.');return}
@@ -70,7 +72,9 @@ export function MemberDock(){
  const history=contents.filter(c=>(section==='Watch History'?member?.history:member?.saved)?.includes(c.id));
  const [theme,setTheme]=useState('system');
  useEffect(()=>{if(member?.theme)setTheme(member.theme)},[member?.theme]);
- const saveTheme=async(v:string)=>{setTheme(v);if(member){try{const r=await api.put('/api/member/me',{theme:v});setMember(r.data.member)}catch(e){setMsg(errMessage(e))}}};
+ const saveTheme=async(v:string)=>{setTheme(v);document.documentElement.dataset.theme=v;if(member){try{const r=await api.put('/api/member/me',{theme:v});setMember(r.data.member)}catch(e){setMsg(errMessage(e))}}};
+ useEffect(()=>{document.documentElement.dataset.theme=theme},[theme]);
+ const visibleAccountSections=sections.filter(s=>!Object.keys(descriptions).includes(s)||(settings?.sections||['Everyday Solutions','Teenager','Youths','Kids / Sunday School']).includes(s));
  const audience=contents.filter(c=>c.audience===section);
  return <div className="cogam-member-dock">
   <div className="member-dock-tools">
@@ -80,7 +84,7 @@ export function MemberDock(){
     </button>
     {opened&&<nav className="member-dock-menu" aria-label="Account navigation">
       {!logged&&<button onClick={()=>void signin()}>Register / Sign in</button>}
-      {sections.map(s=><button key={s} onClick={()=>choose(s)}>{s}<ChevronRight size={14}/></button>)}
+      {visibleAccountSections.map(s=><button key={s} onClick={()=>choose(s)}>{s}<ChevronRight size={14}/></button>)}
       {logged&&<button onClick={()=>void logout()}><LogOut size={15}/> Logout</button>}
     </nav>}
   </div>
@@ -101,7 +105,7 @@ export function MemberDock(){
      {section==='Themes'&&<div style={panel}><p>Choose your interface preference.</p>{['system','light','dark'].map(v=><button style={{...tinyButton,marginRight:8,background:theme===v?'#ddf6d2':'#fff'}} key={v} onClick={()=>void saveTheme(v)}>{v}</button>)}</div>}
      {section==='About CDL'&&<div style={panel}><p><strong>COGAM Digital Library</strong> is a Word of Truth resource for Bible teaching, Christian growth, audio messages, video messages and eBooks.</p><p>Content and announcements are published by approved administrators.</p></div>}
      {section==='FAQs'&&<div style={panel}><h3>How do I register?</h3><p>Select My Account, then Register / Sign in.</p><h3>What does Free include?</h3><p>Three distinct audio teachings and two distinct videos. Premium messages require a paid plan.</p><h3>How are upgrades activated?</h3><p>An administrator verifies your payment independently before approving your plan.</p><h3>Can I download everything?</h3><p>No. Downloads depend on membership and the content owner's settings.</p></div>}
-     {section==='Privacy Policy'&&<div style={panel}><h3>Privacy information</h3><p>This app stores account identity, saved messages, watch history, comments and subscription requests to operate the library. The ministry must publish a reviewed privacy notice, retention rules, and account deletion mechanism before public launch.</p><p>Do not enter sensitive payment data or information about children in comments.</p></div>}
+     {section==='Privacy Policy'&&<div style={panel}><h3>Privacy information</h3><p>COGAM Digital Library uses your account identity, profile details, saved teachings, likes, listening history, comments and subscription status to operate your library experience. Profile photos are stored securely by the platform. Comments are reviewed by authorized ministry administrators before public display.</p><p>Payment collection is not currently active in CDL. When payment processing is enabled, payment details will be handled by the payment provider rather than stored as card data in the library.</p><p>You may request correction or deletion of your account information through the ministry contact email shown in this app. Please do not post passwords, payment details, or private information about children in comments.</p></div>}
      {Object.keys(descriptions).includes(section)&&<div style={panel}><p>{descriptions[section]}</p>{audience.length?<div className="member-results">{audience.map(c=><div key={c.id} style={{...panel,background:'#f7f8ff'}}><strong>{c.title}</strong><p>{c.format} · {c.speaker}</p></div>)}</div>:<p>Content for this collection will appear after a ministry administrator publishes it.</p>}</div>}
      <div style={{marginTop:30,display:'flex',flexWrap:'wrap',gap:12}}>
       {settings?.youtube&&<a href={settings.youtube} rel="noopener noreferrer" target="_blank" style={tinyButton}><Youtube size={16}/> YouTube</a>}
@@ -138,10 +142,10 @@ export function AdminControlCenter(){
   try{
     const base64=await new Promise<string>((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result).split(',')[1]||'');reader.onerror=()=>reject(new Error('Unable to read logo'));reader.readAsDataURL(file)});
     const r=await api.post('/api/admin/logo',{base64,contentType:file.type});
-    setSettings(old=>old?{...old,logoUrl:r.data.logoUrl}:old);setInfo('New ministry logo uploaded');
+    setSettings(old=>old?{...old,logoUrl:'',logoPath:r.data.logoPath}:old);setInfo('New ministry logo uploaded');
   }catch(e){setInfo(errMessage(e))}finally{setLogoUploading(false)}
  };
- const saveSettings=async()=>{setLoading(true);try{await api.put('/api/admin/settings',settings);setInfo('Site settings saved')}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
+ const saveSettings=async()=>{setLoading(true);try{await api.put('/api/admin/settings',settings);setInfo('Site settings saved');window.dispatchEvent(new Event('cogam-settings-updated'))}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
  const approveAdmin=async()=>{setLoading(true);try{await api.post('/api/admin/approvals',{email});setEmail('');setInfo('Administrator approved');await refresh()}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
  const review=async(id:string)=>{setLoading(true);try{await api.put('/api/admin/subscription/'+id,{decision:'decline'});setInfo('Subscription request declined. Only Stripe-verified payments can activate membership.');await refresh()}catch(e){setInfo(errMessage(e))}finally{setLoading(false)}};
  const moderate=async(id:string,approve:boolean)=>{try{await api.put('/api/admin/comments/'+id,{approve});setInfo('Comment reviewed');await refresh()}catch(e){setInfo(errMessage(e))}};
@@ -151,7 +155,7 @@ export function AdminControlCenter(){
    <div className="member-overlay-top"><h2>CDL Management</h2><button style={tinyButton} onClick={()=>setOpen(false)}><X size={17}/></button></div>
    <div style={{display:'flex',flexWrap:'wrap',gap:8,marginBottom:25}}>{['Site Settings','Members','Subscriptions','Comments','Admin Approvals'].map(x=><button key={x} style={{...tinyButton,background:tab===x?'#d7e8ff':'white'}} onClick={()=>setTab(x)}>{x}</button>)}</div>
    {info&&<p role="status">{info}</p>}
-   {tab==='Site Settings'&&settings&&<div style={panel}><p>Changes are visible to visitors after saving. Only verified administrators can edit these settings.</p>{(['heading','heroHeading','heroSubtitle','footerText','announcement','primary','accent','logoUrl','youtube','facebook','tiktok','instagram','contactEmail'] as const).map(key=><label key={key} style={{display:'block',marginBottom:14,fontWeight:700}}>{key}<input style={inputStyle} value={settings[key]||''} onChange={e=>setSettings(old=>old?{...old,[key]:e.target.value}:old)}/></label>)}<label>Upload ministry logo<input type="file" disabled={logoUploading} accept="image/jpeg,image/png,image/webp" style={inputStyle} onChange={e=>{const f=e.target.files?.[0];if(f)void uploadLogo(f)}}/></label>
+   {tab==='Site Settings'&&settings&&<div style={panel}><p>Changes are visible to visitors after saving. Only verified administrators can edit these settings.</p>{(['heading','heroHeading','heroSubtitle','footerText','announcement','primary','accent','logoUrl','youtube','facebook','tiktok','instagram','contactEmail'] as const).map(key=><label key={key} style={{display:'block',marginBottom:14,fontWeight:700}}>{key}<input type={key==='primary'||key==='accent'?'color':'text'} style={inputStyle} value={settings[key]||''} onChange={e=>setSettings(old=>old?{...old,[key]:e.target.value,...(key==='logoUrl'?{logoPath:''}:{})}:old)}/></label>)}<div style={{...panel,marginBottom:16}}><strong>Visible website and app sections</strong><p>Choose which library sections appear in navigation and the member menu.</p>{['Home','Browse','Categories','My Library','Everyday Solutions','Teenager','Youths','Kids / Sunday School'].map(sectionName=><label key={sectionName} style={{display:'flex',gap:10,alignItems:'center',margin:'10px 0'}}><input type="checkbox" checked={(settings.sections||['Home','Browse','Categories','My Library','Everyday Solutions','Teenager','Youths','Kids / Sunday School']).includes(sectionName)} onChange={e=>setSettings(old=>old?{...old,sections:e.target.checked?[...new Set([...(old.sections||[]),sectionName])]:((old.sections||[]).filter(x=>x!==sectionName))}:old)}/>{sectionName}</label>)}</div><label>Upload ministry logo<input type="file" disabled={logoUploading} accept="image/jpeg,image/png,image/webp" style={inputStyle} onChange={e=>{const f=e.target.files?.[0];if(f)void uploadLogo(f)}}/></label>
     <button disabled={loading} style={tinyButton} onClick={()=>void saveSettings()}>Save website settings</button></div>}
    {tab==='Members'&&<div>{members.map(m=><div style={{...panel,marginBottom:10}} key={m.id}><strong>{m.name||m.email}</strong><p>{m.email} · {m.plan||'Free'} · {m.suspended?'Suspended':'Active'}</p><button style={tinyButton} onClick={()=>void changeMember(m.id,!m.suspended)}>{m.suspended?'Reactivate account':'Suspend account'}</button></div>)}</div>}
    {tab==='Subscriptions'&&<div>{requests.map(r=><div style={{...panel,marginBottom:10}} key={r.id}><h3>{r.email}</h3><p>{r.plan} · USD ${r.priceUsd}/month · {r.status}</p>{r.reference&&<p>Reference: {r.reference}</p>}{r.status==='pending'&&<div style={{display:'flex',gap:10}}><button style={tinyButton} disabled={loading} onClick={()=>void review(r.id)}>Decline request</button><span style={{fontSize:12}}>Payment activation is unavailable until Stripe webhook verification is deployed.</span></div>}</div>)}</div>}

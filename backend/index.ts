@@ -23,6 +23,9 @@ type MediaItem = {
   duration: string;
   published: boolean;
   featured: boolean;
+  audience?: string;
+  access?: 'Free' | 'Premium';
+  downloadable?: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -112,6 +115,9 @@ const normalize = (body: unknown, previous?: MediaItem): MediaItem => {
     duration: clean(b.duration, 40),
     published: b.published === true,
     featured: b.featured === true,
+    audience: ['General','Everyday Solutions','Teenager','Youths','Kids / Sunday School'].includes(clean(b.audience)) ? clean(b.audience) : 'General',
+    access: clean(b.access) === 'Premium' ? 'Premium' : 'Free',
+    downloadable: b.downloadable === true,
     createdAt: previous?.createdAt || now,
     updatedAt: now,
   };
@@ -130,8 +136,9 @@ export const handler = router({
         mediaUrl: '',
         filePath: undefined,
         assetUrl: '',
-        access: (item as MediaItem & { access?: string }).access || 'Free',
-        downloadable: (item as MediaItem & { downloadable?: boolean }).downloadable === true,
+        audience: (item as MediaItem).audience || 'General',
+        access: (item as MediaItem).access || 'Free',
+        downloadable: (item as MediaItem).downloadable === true,
       }));
       items.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
       return json({ items });
@@ -335,7 +342,7 @@ export const handler = router({
       const existing=await db.list<Record<string,unknown>>('cogam_site_settings',{limit:5});
       if(existing.items[0])await db.tx.update('cogam_site_settings',[{id:existing.items[0].id,record:{logoPath:path,logoUrl:''}}],{patch:true});
       else await db.add('cogam_site_settings',[{...await getPublicSettings(),logoPath:path,logoUrl:''}]);
-      return json({logoUrl:(await storage.url([path]))[0]?.url||''});
+      return json({logoUrl:(await storage.url([path]))[0]?.url||'',logoPath:path});
     }
   ],
   'PUT /api/admin/settings': [
@@ -350,6 +357,10 @@ export const handler = router({
         if(['primary','accent'].includes(key)&&!/^#[a-fA-F0-9]{6}$/.test(value))return error('Colours must be six-digit hex values',400);
         next[key]=value;
         if(key==='logoUrl'&&value)next.logoPath='';
+      }
+      if(typeof b.logoPath==='string' && b.logoPath.startsWith('branding/')){
+        next.logoPath=clean(b.logoPath,450);
+        next.logoUrl='';
       }
       if(Array.isArray(b.sections)){
         const permitted=['Home','Browse','Categories','My Library','Everyday Solutions','Teenager','Youths','Kids / Sunday School'];

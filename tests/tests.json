@@ -120,5 +120,123 @@
       "Verify no live charges can start without a configured checkout"
     ],
     "expected": "Six plans display correct USD monthly amounts. The Free quota remains three audios and two videos; checkout is disabled until the Stripe integration is deployed and verified."
+  },
+  {
+    "name": "Member registration, profile photo, account menu and theme preferences",
+    "viewport": "mobile",
+    "covers": [
+      "GET /api/member/me",
+      "PUT /api/member/me",
+      "POST /api/member/avatar",
+      "registration and login screen",
+      "top-right account menu",
+      "profile name editing",
+      "secure profile image upload",
+      "watch history and watchlist",
+      "theme preference persistence"
+    ],
+    "description": "A signed-in member can open the top-right account menu, edit a display name, upload a profile picture and change theme settings.",
+    "steps": [
+      "Open My Account and choose Register / Sign in",
+      "Complete the supported AppDeploy authentication flow",
+      "Open Profile and change the display name",
+      "Upload a valid JPG, PNG or WebP profile photo under 1.4 MB",
+      "Save the profile and refresh the page",
+      "Choose dark or light theme, then open Watch History and Watchlist"
+    ],
+    "expected": "The signed-in profile name and photo persist, theme preference is stored, and watch history/watchlist pages render without exposing another user's data."
+  },
+  {
+    "name": "Admin settings, section visibility, logo and member management",
+    "viewport": "desktop",
+    "covers": [
+      "GET /api/settings",
+      "PUT /api/admin/settings",
+      "POST /api/admin/logo",
+      "GET /api/admin/members",
+      "PUT /api/admin/members/:id",
+      "GET /api/admin/approvals",
+      "POST /api/admin/approvals",
+      "PUT /api/admin/approvals/:id",
+      "owner-only administrator approval"
+    ],
+    "description": "The owner can update the public brand, control visible sections, upload a logo, manage member status and approve or revoke additional administrators.",
+    "steps": [
+      "Sign in using the owner account and open the Admin Portal",
+      "Open Extended Admin Controls and change a heading, announcement and brand colour",
+      "Toggle a visible library section and save",
+      "Upload a supported logo image",
+      "Open Members and suspend then reactivate a test member",
+      "Open Admin Approvals and approve then revoke a test administrator"
+    ],
+    "expected": "Public settings and section visibility update, uploaded branding is stored persistently, member status changes are reflected, and only the owner can approve or revoke admin access."
+  },
+  {
+    "name": "Premium media access, audience pages and download permissions",
+    "viewport": "desktop",
+    "covers": [
+      "POST /api/admin/items audience/access/downloadable fields",
+      "GET /api/library audience and premium metadata",
+      "GET /api/member/media/:id access entitlement",
+      "free plan limit of three distinct audios and two distinct videos",
+      "admin content editor audience selector",
+      "admin premium/free selector",
+      "admin download permission"
+    ],
+    "description": "Administrators can assign content to Everyday Solutions, Teenager, Youths or Kids/Sunday School and define Free/Premium access and download eligibility.",
+    "steps": [
+      "Sign in as an approved administrator",
+      "Create a test audio teaching for Kids / Sunday School",
+      "Set access to Premium and turn downloads off",
+      "Publish the item and confirm it appears in the Kids collection",
+      "Sign in as a Free member and try to open the premium item",
+      "Open three distinct free audio teachings and attempt a fourth",
+      "Open two distinct free videos and attempt a third"
+    ],
+    "expected": "Audience content appears in the selected section, premium items are blocked for Free members, distinct Free access is limited to three audios and two videos, and download links appear only when allowed."
+  },
+  {
+    "name": "Like, share, comment and moderated community interactions",
+    "viewport": "mobile",
+    "covers": [
+      "POST /api/member/action like",
+      "POST /api/member/action save",
+      "POST /api/member/action history",
+      "POST /api/member/action comment",
+      "GET /api/content/comments/:id",
+      "GET /api/admin/comments",
+      "PUT /api/admin/comments/:id"
+    ],
+    "description": "Signed-in members can like, save, share and comment on published teachings while new comments remain pending until approved by an administrator.",
+    "steps": [
+      "Open a published teaching and sign in if prompted",
+      "Like the teaching and save it to My Library",
+      "Use Share to share or copy the message details",
+      "Submit a respectful comment",
+      "Open the admin Comments tab and approve the submitted comment",
+      "Return to the teaching and verify the approved comment is visible"
+    ],
+    "expected": "Like and saved state persist to the member profile, sharing is available, comments are stored pending review, and only approved comments are publicly displayed."
+  },
+  {
+    "name": "Subscription request workflow keeps payment activation secure",
+    "viewport": "desktop",
+    "covers": [
+      "six USD monthly subscription tiers",
+      "POST /api/member/subscription-request",
+      "GET /api/admin/subscriptions",
+      "PUT /api/admin/subscription/:id",
+      "Free plan audio and video limits",
+      "Stripe billing disabled until secure webhook setup"
+    ],
+    "description": "Members see all six monthly USD tiers and can submit a plan request without the app claiming that payment has been collected or verified.",
+    "steps": [
+      "Open My Account and Subscription",
+      "Review Free $0, Growth $5, Faith $10, Faith Plus $15, Kingdom $30 and Sonship $50 per month",
+      "Submit an upgrade request",
+      "Open admin Subscriptions and review the pending request",
+      "Try to activate a request without a verified Stripe payment"
+    ],
+    "expected": "The six correct USD prices are displayed, the request is recorded as pending, and paid access cannot be activated through a manual approval while Stripe webhook verification is not deployed."
   }
 ]
