@@ -42,6 +42,9 @@ import {
   Zap,
   Users,
   Star,
+  Share2,
+  MessageCircle,
+  Send,
   Filter,
   AlertCircle,
   Clock3,
@@ -65,9 +68,29 @@ type Item = {
   duration: string;
   published: boolean;
   featured: boolean;
+  audience?: string;
+  access?: 'Free' | 'Premium';
+  downloadable?: boolean;
   createdAt: string;
   updatedAt: string;
 };
+type SiteSettings = {
+  heading?: string;
+  heroHeading?: string;
+  heroSubtitle?: string;
+  footerText?: string;
+  announcement?: string;
+  primary?: string;
+  accent?: string;
+  logoUrl?: string;
+  sections?: string[];
+  youtube?: string;
+  facebook?: string;
+  instagram?: string;
+  tiktok?: string;
+  contactEmail?: string;
+};
+const DEFAULT_SITE_SECTIONS = ['Home','Browse','Categories','My Library','Everyday Solutions','Teenager','Youths','Kids / Sunday School'];
 type Draft = Omit<Item, 'id' | 'assetUrl' | 'createdAt' | 'updatedAt'>;
 const CATS = [
   {
@@ -149,26 +172,39 @@ const BLANK: Draft = {
   duration: '',
   published: false,
   featured: false,
+  audience: 'General',
+  access: 'Free',
+  downloadable: false,
 };
 function niceError(err: unknown): string {
   if (err instanceof Error) return err.message;
   return 'Something went wrong. Please try again.';
 }
-function Brand({ small = false }: { small?: boolean }) {
+function Brand({
+  small = false,
+  logoUrl,
+  heading,
+}: {
+  small?: boolean;
+  logoUrl?: string;
+  heading?: string;
+}) {
   return (
     <div className={'brand ' + (small ? 'brand-small' : '')}>
-      <div className="brand-mark">
-        <span>C</span>
-        <i />
-      </div>
-      <div className="brand-words">
-        <strong>
-          COGAM<span> DIGITAL</span>
-        </strong>
-        <small>
-          LIBRARY <b>•</b> WORD OF TRUTH
-        </small>
-      </div>
+      {logoUrl ? (
+        <img className="brand-logo" src={logoUrl} alt={heading || 'COGAM Digital Library'} />
+      ) : (
+        <>
+          <div className="brand-mark">
+            <span>C</span>
+            <i />
+          </div>
+          <div className="brand-words">
+            <strong>{heading || 'COGAM DIGITAL LIBRARY'}</strong>
+            <small>WORD OF TRUTH</small>
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -201,12 +237,12 @@ function Cover({ item, className = '' }: { item: Item; className?: string }) {
     </div>
   );
 }
-function Footer() {
+function Footer({ settings }: { settings: SiteSettings }) {
   return (
     <footer className="footer">
       <div className="container footer-inner">
-        <Brand small />
-        <div>Rooted in the Word. Growing in truth.</div>
+        <Brand small logoUrl={settings.logoUrl} heading={settings.heading} />
+        <div>{settings.footerText || 'Rooted in the Word. Growing in truth.'}</div>
         <span>© {new Date().getFullYear()} COGAM Word of Truth</span>
       </div>
     </footer>
@@ -223,18 +259,118 @@ function Player({
   saved: boolean;
   onSave: () => void;
 }) {
-  const url = item.assetUrl || item.mediaUrl;
+  const [url, setUrl] = useState('');
+  const [downloadable, setDownloadable] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [accessError, setAccessError] = useState('');
+  const [liked, setLiked] = useState(false);
+  const [comment, setComment] = useState('');
+  const [comments, setComments] = useState<Array<{ id: string; text: string; author: string; createdAt: string }>>([]);
+  const [feedback, setFeedback] = useState('');
+  const [actionBusy, setActionBusy] = useState(false);
+
+  const loadContent = async () => {
+    setLoading(true);
+    setAccessError('');
+    try {
+      const user = await auth.getUser();
+      if (!user) {
+        setUrl('');
+        setAccessError('Register or sign in to access this teaching. Free members can open up to 3 distinct audio teachings and 2 distinct videos.');
+        return;
+      }
+      const [mediaResult, memberResult, commentResult] = await Promise.all([
+        api.get('/api/member/media/' + encodeURIComponent(item.id)),
+        api.get('/api/member/me'),
+        api.get('/api/content/comments/' + encodeURIComponent(item.id)),
+      ]);
+      setUrl(mediaResult.data.url || '');
+      setDownloadable(mediaResult.data.downloadable === true);
+      setLiked((memberResult.data.member.liked || []).includes(item.id));
+      setComments(commentResult.data.comments || []);
+      await api.post('/api/member/action', { action: 'history', contentId: item.id });
+    } catch (err) {
+      setAccessError(niceError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void loadContent();
+  }, [item.id]);
+
+  const signIn = async () => {
+    setActionBusy(true);
+    setAccessError('');
+    try {
+      await auth.signInWithRedirect();
+    } catch (err) {
+      setAccessError(niceError(err));
+      setActionBusy(false);
+    }
+  };
+
+  const toggleLike = async () => {
+    setActionBusy(true);
+    setFeedback('');
+    try {
+      const user = await auth.getUser();
+      if (!user) {
+        await auth.signInWithRedirect();
+        return;
+      }
+      const result = await api.post('/api/member/action', { action: 'like', contentId: item.id });
+      setLiked((result.data.member?.liked || []).includes(item.id));
+      setFeedback('Your like has been saved.');
+    } catch (err) {
+      setFeedback(niceError(err));
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const submitComment = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!comment.trim()) return;
+    setActionBusy(true);
+    setFeedback('');
+    try {
+      const user = await auth.getUser();
+      if (!user) {
+        await auth.signInWithRedirect();
+        return;
+      }
+      await api.post('/api/member/action', { action: 'comment', contentId: item.id, comment });
+      setComment('');
+      setFeedback('Your comment was submitted for ministry review.');
+    } catch (err) {
+      setFeedback(niceError(err));
+    } finally {
+      setActionBusy(false);
+    }
+  };
+
+  const share = async () => {
+    const shareText = item.title + ' — ' + (item.speaker || 'COGAM Word of Truth');
+    try {
+      if (navigator.share) {
+        await navigator.share({ title: item.title, text: shareText, url: window.location.href });
+      } else if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareText + '\n' + window.location.href);
+        setFeedback('Message details copied so you can share them.');
+      } else {
+        setFeedback('Copy this page address to share the message.');
+      }
+    } catch {
+      setFeedback('Sharing was cancelled.');
+    }
+  };
+
   return (
     <div className="modal-backdrop" onMouseDown={onClose}>
-      <div
-        className="player-modal"
-        onMouseDown={event => event.stopPropagation()}
-      >
-        <button
-          className="icon-button close-modal"
-          onClick={onClose}
-          aria-label="Close"
-        >
+      <div className="player-modal" onMouseDown={event => event.stopPropagation()}>
+        <button className="icon-button close-modal" onClick={onClose} aria-label="Close">
           <X size={19} />
         </button>
         <div className="player-cover">
@@ -244,55 +380,75 @@ function Player({
           <div className="eyebrow">
             <FormatIcon format={item.format} size={16} />{' '}
             {item.format.toUpperCase()} · {item.category}
+            {item.access === 'Premium' && <span className="premium-tag">PREMIUM</span>}
           </div>
           <h2>{item.title}</h2>
-          <p className="muted">
-            By {item.speaker || 'COGAM Word of Truth'} · {item.language}
-          </p>
+          <p className="muted">By {item.speaker || 'COGAM Word of Truth'} · {item.language}</p>
           {item.summary && <p className="player-description">{item.summary}</p>}
-          {item.format === 'Audio' && url && (
+          {loading && <div className="empty-notice">Checking your access...</div>}
+          {!loading && accessError && (
+            <div className="empty-notice">
+              <p>{accessError}</p>
+              <button className="primary-button" onClick={() => void signIn()} disabled={actionBusy}>
+                Register / Sign in <ArrowRight size={17} />
+              </button>
+              <p>Open My Account in the top-right menu to review membership plans.</p>
+            </div>
+          )}
+          {!loading && !accessError && item.format === 'Audio' && url && (
             <audio className="media-player" controls src={url} />
           )}
-          {item.format === 'Video' && url && (
+          {!loading && !accessError && item.format === 'Video' && url && (
             <video className="media-player video-player" controls src={url} />
           )}
-          {item.format === 'Article' && (
-            <p className="article-body">
-              {item.summary || 'Article details will be added soon.'}
-            </p>
+          {!loading && !accessError && item.format === 'Article' && (
+            <p className="article-body">{item.summary || 'Article details will be added soon.'}</p>
           )}
-          {item.format === 'eBook' && url && (
-            <a
-              className="primary-button"
-              href={url}
-              target="_blank"
-              rel="noreferrer"
-            >
-              <BookOpen size={18} /> Open eBook
+          {!loading && !accessError && item.format === 'eBook' && url && downloadable && (
+            <a className="primary-button" href={url} target="_blank" rel="noreferrer" download>
+              <BookOpen size={18} /> Open / Download eBook
             </a>
           )}
-          {!url && item.format !== 'Article' && (
-            <div className="empty-notice">
-              Media file is not available. Please contact the library
-              administrator.
-            </div>
+          {!loading && !accessError && item.format === 'eBook' && url && !downloadable && (
+            <div className="empty-notice">This eBook is available for online access only under your current plan.</div>
+          )}
+          {!loading && !accessError && !url && item.format !== 'Article' && (
+            <div className="empty-notice">Media file is not available. Please contact the library administrator.</div>
           )}
           <div className="player-actions">
             <button className="outline-button" onClick={onSave}>
               <Bookmark size={17} fill={saved ? 'currentColor' : 'none'} />{' '}
               {saved ? 'Saved to My Library' : 'Save to My Library'}
             </button>
-            {url && (
-              <a
-                className="outline-button"
-                href={url}
-                target="_blank"
-                rel="noreferrer"
-              >
-                <ExternalLink size={17} /> Open file
+            <button className="outline-button" onClick={() => void toggleLike()} disabled={actionBusy}>
+              <Heart size={17} fill={liked ? 'currentColor' : 'none'} /> {liked ? 'Liked' : 'Like'}
+            </button>
+            <button className="outline-button" onClick={() => void share()}>
+              <Share2 size={17} /> Share
+            </button>
+            {url && downloadable && (
+              <a className="outline-button" href={url} download target="_blank" rel="noreferrer">
+                <ArrowDownToLine size={17} /> Download
               </a>
             )}
           </div>
+          {feedback && <p role="status" className="empty-notice">{feedback}</p>}
+          <section className="player-comments">
+            <h3><MessageCircle size={18} /> Comments</h3>
+            {comments.length ? comments.map(entry => (
+              <div className="player-comment" key={entry.id}>
+                <strong>{entry.author || 'COGAM member'}</strong>
+                <p>{entry.text}</p>
+              </div>
+            )) : <p className="muted">No published comments yet. Be the first to share a helpful reflection.</p>}
+            <form onSubmit={event => void submitComment(event)} className="player-comment-form">
+              <textarea value={comment} onChange={event => setComment(event.target.value)} maxLength={500} rows={3} placeholder="Share a respectful reflection..." aria-label="Write a comment" />
+              <button className="primary-button" type="submit" disabled={actionBusy || !comment.trim()}>
+                <Send size={16} /> Post comment
+              </button>
+            </form>
+            <small>Comments are reviewed by ministry administrators before they appear publicly.</small>
+          </section>
         </div>
       </div>
     </div>
@@ -317,13 +473,29 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
     }
   });
   const [mobileMenu, setMobileMenu] = useState(false);
+  const [siteSettings, setSiteSettings] = useState<SiteSettings>({});
   const searchRef = useRef<HTMLInputElement>(null);
   const reload = async () => {
     setBusy(true);
     setErrorText('');
     try {
-      const res = await api.get('/api/library');
+      const [res, settingsResult] = await Promise.all([
+        api.get('/api/library'),
+        api.get('/api/settings'),
+      ]);
       setItems(res.data.items || []);
+      setSiteSettings(settingsResult.data.settings || {});
+      const user = await auth.getUser().catch(() => null);
+      if (user) {
+        try {
+          const memberResult = await api.get('/api/member/me');
+          const memberSaved = memberResult.data.member?.saved || [];
+          setSaved(memberSaved);
+          localStorage.setItem('cogam-saved', JSON.stringify(memberSaved));
+        } catch {
+          // Keep public browsing available if the member profile is not ready.
+        }
+      }
     } catch (err) {
       setErrorText(niceError(err));
     } finally {
@@ -333,6 +505,18 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
   useEffect(() => {
     void reload();
   }, []);
+  useEffect(() => {
+    const applySettings = () => {
+      void api.get('/api/settings').then(result => setSiteSettings(result.data.settings || {})).catch(() => undefined);
+    };
+    window.addEventListener('cogam-settings-updated', applySettings);
+    return () => window.removeEventListener('cogam-settings-updated', applySettings);
+  }, []);
+  useEffect(() => {
+    if (siteSettings.primary && /^#[0-9a-fA-F]{6}$/.test(siteSettings.primary)) document.documentElement.style.setProperty('--cogam-primary', siteSettings.primary);
+    if (siteSettings.accent && /^#[0-9a-fA-F]{6}$/.test(siteSettings.accent)) document.documentElement.style.setProperty('--cogam-accent', siteSettings.accent);
+  }, [siteSettings.primary, siteSettings.accent]);
+  const activeSections = siteSettings.sections || DEFAULT_SITE_SECTIONS;
   const navigate = (next: string) => {
     setPage(next);
     setMobileMenu(false);
@@ -357,14 +541,20 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
             .includes(needle))
     );
   }, [items, saved, page, category, format, query]);
-  const toggleSave = (id: string) => {
-    setSaved(old => {
-      const next = old.includes(id)
-        ? old.filter(value => value !== id)
-        : [...old, id];
+  const toggleSave = async (id: string) => {
+    try {
+      const user = await auth.getUser();
+      if (!user) {
+        await auth.signInWithRedirect();
+        return;
+      }
+      const result = await api.post('/api/member/action', { action: 'save', contentId: id });
+      const next = result.data.member?.saved || [];
+      setSaved(next);
       localStorage.setItem('cogam-saved', JSON.stringify(next));
-      return next;
-    });
+    } catch (err) {
+      setErrorText(niceError(err));
+    }
   };
   const goSearch = () => {
     navigate('browse');
@@ -446,36 +636,39 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
   return (
     <div className="site-shell">
       <div className="announcement">
-        <Sparkles size={14} /> Welcome to the Word of Truth digital experience{' '}
-        <span>✦</span> Learn. Grow. Be transformed.
+        <Sparkles size={14} /> {siteSettings.announcement || 'Welcome to the Word of Truth digital experience · Learn. Grow. Be transformed.'}
       </div>
       <MemberDock />
       <header className="site-header">
         <div className="container header-inner">
           <button className="brand-button" onClick={() => navigate('home')}>
-            <Brand />
+            <Brand logoUrl={siteSettings.logoUrl} heading={siteSettings.heading} />
           </button>
           <nav className={'top-nav ' + (mobileMenu ? 'mobile-show' : '')}>
             <button
               className={page === 'home' ? 'active' : ''}
+              hidden={!activeSections.includes('Home')}
               onClick={() => navigate('home')}
             >
               Home
             </button>
             <button
               className={page === 'browse' ? 'active' : ''}
+              hidden={!activeSections.includes('Browse')}
               onClick={() => navigate('browse')}
             >
               Browse
             </button>
             <button
               className={page === 'categories' ? 'active' : ''}
+              hidden={!activeSections.includes('Categories')}
               onClick={() => navigate('categories')}
             >
               Categories
             </button>
             <button
               className={page === 'saved' ? 'active' : ''}
+              hidden={!activeSections.includes('My Library')}
               onClick={() => navigate('saved')}
             >
               My Library
@@ -513,14 +706,10 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
                     EVERYWHERE
                   </div>
                   <h1>
-                    Grow in the Word.
-                    <br />
-                    <em>Live in His Truth.</em>
+                    {siteSettings.heroHeading || <>Grow in the Word.<br /><em>Live in His Truth.</em></>}
                   </h1>
                   <p>
-                    Your home for faith-building messages, life-changing
-                    teachings, worship, and timeless wisdom from COGAM Word of
-                    Truth.
+                    {siteSettings.heroSubtitle || 'Your home for faith-building messages, life-changing teachings, worship, and timeless wisdom from COGAM Word of Truth.'}
                   </p>
                   <div className="hero-ctas">
                     <button
@@ -833,7 +1022,7 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
           </section>
         )}
       </main>
-      <Footer />
+      <Footer settings={siteSettings} />
       <div className="mobile-bottom-nav">
         <button
           className={page === 'home' ? 'current' : ''}
@@ -858,6 +1047,7 @@ function MemberSite({ toAdmin }: { toAdmin: () => void }) {
         </button>
         <button
           className={page === 'saved' ? 'current' : ''}
+          hidden={!activeSections.includes('My Library')}
           onClick={() => navigate('saved')}
         >
           <Bookmark size={20} />
@@ -880,6 +1070,7 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
     'checking' | 'guest' | 'denied' | 'authorized'
   >('checking');
   const [who, setWho] = useState('');
+  const [brandSettings, setBrandSettings] = useState<SiteSettings>({});
   const [items, setItems] = useState<Item[]>([]);
   const [message, setMessage] = useState('');
   const [errorText, setErrorText] = useState('');
@@ -898,6 +1089,9 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
     setItems(response.data.items || []);
     setStatus('authorized');
   };
+  useEffect(() => {
+    void api.get('/api/settings').then(result => setBrandSettings(result.data.settings || {})).catch(() => undefined);
+  }, []);
   useEffect(() => {
     let active = true;
     (async () => {
@@ -921,8 +1115,7 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
     setLoading(true);
     setErrorText('');
     try {
-      await auth.signIn();
-      await loadAdmin();
+      await auth.signInWithRedirect();
     } catch (err) {
       setErrorText(niceError(err));
       setStatus('denied');
@@ -966,6 +1159,9 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
       duration: item.duration || '',
       published: item.published,
       featured: item.featured,
+      audience: item.audience || 'General',
+      access: item.access || 'Free',
+      downloadable: item.downloadable === true,
     });
     setEditId(item.id);
     setFile(null);
@@ -1065,7 +1261,7 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
           <button onClick={toLibrary}>
             <ArrowLeft size={18} /> Back to library
           </button>
-          <Brand small />
+          <Brand small logoUrl={brandSettings.logoUrl} heading={brandSettings.heading} />
         </div>
         <div className="admin-auth-box">
           <div className="auth-shield">
@@ -1118,7 +1314,7 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
     <div className="admin-layout">
       <aside className="admin-sidebar">
         <button className="brand-button" onClick={toLibrary}>
-          <Brand small />
+          <Brand small logoUrl={brandSettings.logoUrl} heading={brandSettings.heading} />
         </button>
         <div className="admin-side-title">WORKSPACE</div>
         <button
@@ -1151,7 +1347,7 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
       <div className="admin-main">
         <div className="admin-topbar">
           <div className="mobile-admin-brand">
-            <Brand small />
+            <Brand small logoUrl={brandSettings.logoUrl} heading={brandSettings.heading} />
           </div>
           <span>
             <span className="online-dot" /> Admin workspace
@@ -1443,6 +1639,23 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
                     </select>
                   </label>
                   <label className="field">
+                    <span>Audience / page</span>
+                    <select value={draft.audience || 'General'} onChange={e => change('audience', e.target.value)}>
+                      <option>General</option>
+                      <option>Everyday Solutions</option>
+                      <option>Teenager</option>
+                      <option>Youths</option>
+                      <option>Kids / Sunday School</option>
+                    </select>
+                  </label>
+                  <label className="field">
+                    <span>Content access</span>
+                    <select value={draft.access || 'Free'} onChange={e => change('access', e.target.value)}>
+                      <option>Free</option>
+                      <option>Premium</option>
+                    </select>
+                  </label>
+                  <label className="field">
                     <span>Content type</span>
                     <select
                       value={draft.format}
@@ -1570,6 +1783,17 @@ function AdminSite({ toLibrary }: { toLibrary: () => void }) {
                     type="checkbox"
                     checked={draft.published}
                     onChange={e => change('published', e.target.checked)}
+                  />
+                </label>
+                <label className="switch-row">
+                  <div>
+                    <strong>Allow downloads for paid members</strong>
+                    <span>Turn this off for stream-only or online-access content.</span>
+                  </div>
+                  <input
+                    type="checkbox"
+                    checked={draft.downloadable === true}
+                    onChange={e => change('downloadable', e.target.checked)}
                   />
                 </label>
                 <label className="switch-row">
