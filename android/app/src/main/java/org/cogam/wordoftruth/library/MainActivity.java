@@ -3,10 +3,10 @@ package org.cogam.wordoftruth.library;
 import android.app.Activity;
 import android.os.Bundle;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.net.Uri;
 import android.view.Gravity;
-import android.view.View;
 import android.view.ViewGroup;
 import android.webkit.DownloadListener;
 import android.webkit.WebChromeClient;
@@ -21,41 +21,55 @@ import android.widget.Toast;
 public final class MainActivity extends Activity {
     private static final String SITE = "https://cogam-digital-library-6kql36.v2.appdeploy.ai/";
     private static final String HOST = "cogam-digital-library-6kql36.v2.appdeploy.ai";
+    private static final int DEEP_SLATE = Color.rgb(32, 43, 60);
     private WebView webView;
 
     @Override
     public void onCreate(Bundle state) {
         super.onCreate(state);
-        getWindow().setStatusBarColor(Color.rgb(15, 22, 68));
-        getWindow().setNavigationBarColor(Color.rgb(15, 22, 68));
+        getWindow().setStatusBarColor(DEEP_SLATE);
+        getWindow().setNavigationBarColor(DEEP_SLATE);
 
         LinearLayout layout = new LinearLayout(this);
         layout.setOrientation(LinearLayout.VERTICAL);
-        layout.setBackgroundColor(Color.WHITE);
+        layout.setBackgroundColor(DEEP_SLATE);
 
         LinearLayout toolbar = new LinearLayout(this);
-        toolbar.setPadding(dp(16), dp(5), dp(7), dp(5));
-        toolbar.setBackgroundColor(Color.rgb(31, 27, 108));
+        toolbar.setPadding(dp(10), dp(5), dp(7), dp(5));
+        toolbar.setBackgroundColor(Color.rgb(38, 54, 83));
         toolbar.setGravity(Gravity.CENTER_VERTICAL);
 
         TextView title = new TextView(this);
         title.setText("COGAM  •  DIGITAL LIBRARY");
-        title.setTextSize(14);
+        title.setTextSize(13);
         title.setTextColor(Color.WHITE);
         title.setTypeface(null, 1);
         toolbar.addView(title, new LinearLayout.LayoutParams(0, dp(44), 1));
 
+        Button homeButton = new Button(this);
+        homeButton.setText("Home");
+        homeButton.setTextColor(Color.WHITE);
+        homeButton.setBackgroundTintList(
+                ColorStateList.valueOf(Color.rgb(91, 88, 224)));
+        homeButton.setOnClickListener(v -> {
+            if (webView != null) webView.loadUrl(SITE);
+        });
+        toolbar.addView(homeButton, new LinearLayout.LayoutParams(dp(76), dp(43)));
+
         Button openBrowser = new Button(this);
         openBrowser.setText("Browser");
+        openBrowser.setTextColor(Color.WHITE);
+        openBrowser.setBackgroundTintList(
+                ColorStateList.valueOf(Color.rgb(232, 111, 90)));
         openBrowser.setContentDescription("Open library in external browser for sign-in");
         openBrowser.setOnClickListener(v -> openExternal(Uri.parse(SITE)));
-        toolbar.addView(openBrowser, new LinearLayout.LayoutParams(dp(105), dp(43)));
+        toolbar.addView(openBrowser, new LinearLayout.LayoutParams(dp(91), dp(43)));
 
         layout.addView(toolbar, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, dp(54)));
 
         webView = new WebView(this);
-        webView.setBackgroundColor(Color.WHITE);
+        webView.setBackgroundColor(DEEP_SLATE);
         webView.getSettings().setJavaScriptEnabled(true);
         webView.getSettings().setDomStorageEnabled(true);
         webView.getSettings().setAllowFileAccess(false);
@@ -133,6 +147,8 @@ public final class MainActivity extends Activity {
     public void onBackPressed() {
         if (webView != null && webView.canGoBack()) {
             webView.goBack();
+        } else if (webView != null && !SITE.equals(webView.getUrl())) {
+            webView.loadUrl(SITE);
         } else {
             super.onBackPressed();
         }

@@ -6,8 +6,9 @@
         android:allowBackup="false"
         android:usesCleartextTraffic="false"
         android:label="COGAM DIGITAL LIBRARY"
-        android:icon="@drawable/ic_launcher"
-        android:theme="@android:style/Theme.Material.Light.NoActionBar"
+        android:icon="@drawable/cogam_launcher"
+        android:roundIcon="@drawable/cogam_launcher"
+        android:theme="@android:style/Theme.Material.NoActionBar"
         android:supportsRtl="true">
         <activity
             android:name=".MainActivity"

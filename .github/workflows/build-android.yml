@@ -42,18 +42,18 @@ jobs:
       - name: Prepare downloadable APK
         run: |
           mkdir -p release
-          cp android/app/build/outputs/apk/debug/app-debug.apk release/COGAM-Digital-Library-v1.0.0.apk
+          cp android/app/build/outputs/apk/debug/app-debug.apk release/COGAM-Digital-Library-v1.0.1.apk
       - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: COGAM-Digital-Library-APK
-          path: release/COGAM-Digital-Library-v1.0.0.apk
+          name: COGAM-Digital-Library-APK-v1.0.1
+          path: release/COGAM-Digital-Library-v1.0.1.apk
       - name: Publish public APK download
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          if gh release view android-v1.0.0 >/dev/null 2>&1; then
-            gh release upload android-v1.0.0 release/COGAM-Digital-Library-v1.0.0.apk --clobber
+          if gh release view android-v1.0.1 >/dev/null 2>&1; then
+            gh release upload android-v1.0.1 release/COGAM-Digital-Library-v1.0.1.apk --clobber
           else
-            gh release create android-v1.0.0 release/COGAM-Digital-Library-v1.0.0.apk --title "COGAM DIGITAL LIBRARY Android v1.0.0" --notes "Android app for COGAM DIGITAL LIBRARY. Installs outside the Play Store. This first build is a debug-signed WebView client of the live online library and requires internet access. Login providers may require the external browser."
+            gh release create android-v1.0.1 release/COGAM-Digital-Library-v1.0.1.apk --title "COGAM DIGITAL LIBRARY Android v1.0.1" --notes "Updated Android companion with the current hosted COGAM Digital Library, refreshed COGAM launcher icon, and in-app Home navigation. This is a debug-signed WebView build for testing/personal installation and requires internet access. Some sign-in providers may require the external Browser button."
           fi
